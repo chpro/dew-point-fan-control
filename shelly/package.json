@@ -1,0 +1,16 @@
+{
+
+  "scripts": {
+
+    "test": "./node_modules/coverage/index.js test/tests.js"
+
+  },
+
+  "dependencies": {
+
+    "coverage": "^0.4.1"
+
+  }
+
+}
+
