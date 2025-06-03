@@ -15,10 +15,10 @@ Shelly = {
             case 'switch.set':
                 break;
             case 'http.get':
-                cb({
+                cb({"body" : JSON.stringify({
                     "indoor": {"temperature" : 20, "humidity" : 100},
                     "outdoor": {"temperature" : 20, "humidity" : 100}
-                })
+                })});
                 break;
             default:
                 break;

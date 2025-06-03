@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/"
+  },
+
+  "response": {
+    "status": 200,
+    "body": "{\"indoor\":{\"temperature\":20,\"humidity\":60},\"outdoor\":{\"temperature\":30,\"humidity\":50}}",
+    "headers": {
+        "Content-Type": "application/json"
+    }
+  }
+}

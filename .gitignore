@@ -1,3 +1,5 @@
 shelly/scripts
 shelly/coverage
 shelly/node_modules
+sketch/humidity_temperature_webservice/wifi.h
+sketch/humidity_temperature_webservice/build

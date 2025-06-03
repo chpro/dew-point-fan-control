@@ -17,21 +17,32 @@ function executeTest() {
 
     test(calc.DEW_POINT_DELTA_MIN + calc.HYSTERESE +1, true);
 
-    testTempLimit(calc.MIN_INDOOR_TEMP -1, 20, false);
-    testTempLimit(20, calc.MIN_OUTDOOR_TEMP -1, false);
+    testTempLimit(calc.INDOOR_TEMP_MIN -1, 20, false);
+    testTempLimit(20, calc.OUTDOOR_TEMP_MIN -1, false);
+
+    testHumidityLimit(calc.INDOOR_HUMIDITY_MIN -1, 1, false);
+    testHumidityLimit(calc.INDOOR_HUMIDITY_MIN, 1, true);
+    testHumidityLimit(calc.INDOOR_HUMIDITY_MIN +1, 1, true);
 }
 
 function test(delta, expected, switchOn = null) {
-    var indoor = {"temperature" : 20 + delta, "humidity" : 100}; //add 0.1 °C to avoid rounding problems
+    var indoor = {"temperature" : 20 + delta, "humidity" : 100};
     var outdoor = {"temperature" : 20, "humidity" : 100};
     var on = calc.caclulateSwitchOn(indoor, outdoor, switchOn);
     assertlib.equal(on, expected);
 }
 
 function testTempLimit(indoorTemp, outdoorTemp, expected) {
-    var indoor = {"temperature" : indoorTemp, "humidity" : 100}; //add 0.1 °C to avoid rounding problems
+    var indoor = {"temperature" : indoorTemp, "humidity" : 100}; 
     var outdoor = {"temperature" : outdoorTemp, "humidity" : 100};
     var on = calc.caclulateSwitchOn(indoor, outdoor, null);
+    assertlib.equal(on, expected);
+}
+
+function testHumidityLimit(indoorHumidity, outdoorHumidity, expected) {
+    var indoor = {"temperature" : 20, "humidity" : indoorHumidity}; 
+    var outdoor = {"temperature" : 20, "humidity" : outdoorHumidity};
+    var on = calc.caclulateSwitchOn(indoor, outdoor, false);
     assertlib.equal(on, expected);
 }
 
