@@ -1,10 +1,7 @@
-if (typeof Timer === 'undefined') {
-    const Timer = require("../test/shellymock").Timer
+if (typeof Timer === 'undefined' && typeof Shelly === 'undefined') {
+    require("../test/shellymock").Timer
 }
 
-if (typeof Shelly === 'undefined') {
-    const Shelly = require("../test/shellymock").Shelly
-} 
 
 // script start
 const HYSTERESE = 2;
@@ -12,17 +9,24 @@ const DEW_POINT_DELTA_MIN = 3;
 const INDOOR_TEMP_MIN = 10.0;
 const OUTDOOR_TEMP_MIN = -10.0;
 const INDOOR_HUMIDITY_MIN = 50;
-const UPDATE_INTERVAL_MS = 10 * 10 * 1000; // in milli seconds
+const INDOOR_HUMIDITY_MAX = 65;
+const UPDATE_INTERVAL_MS = 10 * 60 * 1000; // in milli seconds
+const SHELLY_RGB_COLOR_ERROR = [0, 0, 100];
+const SHELLY_RGB_COLOR_HUMIDITY_DRY = [0, 100 , 0]; // below INDOOR_HUMIDITY_MIN
+const SHELLY_RGB_COLOR_HUMIDITY_COMFORT_ZONE = [75, 0 , 100]; // between INDOOR_HUMIDITY_MIN and INDOOR_HUMIDITY_MAX
+const SHELLY_RGB_COLOR_HUMIDITY_MOISTY = [100, 0 , 0]; // above INDOOR_HUMIDITY_MAX
+
+const STATE_CHANGE_EVENT_URL = "http://tig.localdomain:9002/telegraf"; // post call is issued after switch state is changed with switch status and measurement info as json
+const MEASUREMENTS_URL = "http://dewpointws.localdomain";
 
 function udpateSwitch() {
     // call remote api
     Shelly.call(
         "http.get", {
-            url: "http://dewpointws.localdomain"
+            url: MEASUREMENTS_URL
         },
         function (response, error_code, error_message, ud) {
-            if (error_code !== 0) {
-                console.log("Error getting data: ", {"code": error_code, "message" : error_message});
+            if (errorHandler(response, error_code, error_message, ud)) {
                 return;
             } 
             // get the current switch status
@@ -31,9 +35,17 @@ function udpateSwitch() {
             Shelly.call(
                 "switch.getStatus",
                 { id: 0 },
-                function (res, error_code, error_msg, ud) {
-                    var switchOn = res.output;
-                    Shelly.call("Switch.Set", {id:0, on: caclulateSwitchOn(respBody.indoor, respBody.outdoor, switchOn)}); 
+                function (response, error_code, error_message, ud) {
+                    if (errorHandler(response, error_code, error_message, ud)) {
+                        return;
+                    } 
+                    var switchOn = response.output;
+                    var newSwitchOn = caclulateSwitchOn(respBody.indoor, respBody.outdoor, switchOn);
+                    Shelly.call("Switch.Set", {id:0, on: newSwitchOn}, function(response, error_code, error_message, ud) {
+                        if (!errorHandler(response, error_code, error_message, ud)) {
+                            sendStatusChange(respBody, newSwitchOn);
+                        }
+                    });
                 },
                 null
             );
@@ -41,6 +53,23 @@ function udpateSwitch() {
         null
     );
 
+}
+
+/**
+ * 
+ * @param {*} response 
+ * @param {*} error_code 
+ * @param {*} error_message 
+ * @param {*} ud 
+ * @returns True if error occured otherwise false
+ */
+function errorHandler(response, error_code, error_message, ud) {
+    if (error_code !== 0) {
+        console.log(new Date(), "Error occured ", {"code": error_code, "message" : error_message, "userData" : ud});
+        _configureLight(SHELLY_RGB_COLOR_ERROR, 100, 100);
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -52,24 +81,24 @@ function udpateSwitch() {
  */
 function caclulateSwitchOn(indoor, outdoor, switchOn) {
     const delta = calculateDewPoint(indoor.temperature, indoor.humidity) - calculateDewPoint(outdoor.temperature, outdoor.humidity);
-    console.log("Dew point delta " + delta + " for indoor ", indoor, "and outdoor ", outdoor);
+    console.log(new Date(), "Dew point delta " + delta + " for indoor ", indoor, "and outdoor ", outdoor);
     if (indoor.humidity < INDOOR_HUMIDITY_MIN) {
-        console.log("Switch off because indoor humidity to low", indoor);
+        console.log(new Date(), "Switch off because indoor humidity to low", indoor);
         return false;
     } else if (indoor.temperature < INDOOR_TEMP_MIN) {
-        console.log("Switch off because indoor temperature to low", indoor);
+        console.log(new Date(), "Switch off because indoor temperature to low", indoor);
         return false;
     } else if(outdoor.temperature < OUTDOOR_TEMP_MIN) {
-        console.log("Switch off because outdoor temperature to low", outdoor);
+        console.log(new Date(), "Switch off because outdoor temperature to low", outdoor);
         return false;
     } else if (delta >= (DEW_POINT_DELTA_MIN + HYSTERESE)) {
-        console.log("Switch on");
+        console.log(new Date(), "Switch on");
         return true;
     } else if (delta < DEW_POINT_DELTA_MIN) {
-        console.log("Switch off because dew point delta to small");
+        console.log(new Date(), "Switch off because dew point delta to small");
         return false;
     } else {
-        console.log("No switch status change. Keeping switch " + (switchOn ? "on" : "off"));
+        console.log(new Date(), "No switch status change. Keeping switch " + (switchOn ? "on" : "off"));
         return switchOn;
     } 
 }
@@ -106,14 +135,14 @@ function _calculateDewPoint(a, b, temperature, humidity) {
 function configureLight(measures) {
     var humidity = measures.indoor.humidity;
     var shellyRgb = null;
-    if (humidity < INDOOR_HUMIDITY_MIN) { // green
-        shellyRgb = [0, 100 , 0];
-    } else if (humidity >= 65) { // red
-        shellyRgb = [100, 0 , 0];
-    } else { // lilac
-        shellyRgb = [75, 0 , 100];
+    if (humidity < INDOOR_HUMIDITY_MIN) {
+        shellyRgb = SHELLY_RGB_COLOR_HUMIDITY_DRY;
+    } else if (humidity >= INDOOR_HUMIDITY_MAX) {
+        shellyRgb = SHELLY_RGB_COLOR_HUMIDITY_MOISTY;
+    } else {
+        shellyRgb = SHELLY_RGB_COLOR_HUMIDITY_COMFORT_ZONE;
     }
-    console.log("Seti light to ", shellyRgb, " because of humidit ", humidity);
+    console.log(new Date(), "Set light to ", shellyRgb, " because of humidity ", humidity);
     _configureLight(shellyRgb, 100, 10);
 }
 
@@ -131,8 +160,20 @@ function _configureLight(shellyRGB, onBrightness, offBrightness) {
         uiConfig.leds.colors["switch:0"].off.brightness=offBrightness
 
         uiConfig.leds.mode = "switch"
-        Shelly.call("PLUGS_UI.SetConfig", {config: uiConfig}, function(response, error_code, error_message){console.log(response, error_code, error_message)})
+        Shelly.call("PLUGS_UI.SetConfig", {config: uiConfig}, function(response, error_code, error_message){errorHandler(response, error_code, error_message)})
     })
+}
+
+function sendStatusChange(measures, switchStatus) {
+    var statusInfo = measures;
+    statusInfo["switch"] = (switchStatus ? 1 : 0);
+    console.log(new Date(), "Sending status change", statusInfo);
+
+    let postData = {
+        url: STATE_CHANGE_EVENT_URL,
+        body: statusInfo
+    };
+    Shelly.call("HTTP.POST", postData, function(response, error_code, error_message){console.log(new Date(), response, error_code, error_message)});
 }
 
 function startTimer() {
@@ -144,4 +185,4 @@ startTimer();
 
 // script end
 
-module.exports ={calculateDewPoint, caclulateSwitchOn, HYSTERESE, DEW_POINT_DELTA_MIN, INDOOR_TEMP_MIN, OUTDOOR_TEMP_MIN, INDOOR_HUMIDITY_MIN} 
+module.exports ={calculateDewPoint, caclulateSwitchOn, HYSTERESE, DEW_POINT_DELTA_MIN, INDOOR_TEMP_MIN, OUTDOOR_TEMP_MIN, INDOOR_HUMIDITY_MIN, udpateSwitch} 

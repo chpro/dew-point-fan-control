@@ -30,11 +30,6 @@ const uint8_t OUTDOOR_DHT_PIN = 12;
 DHT indoorDht(INDOOR_DHT_PIN, DHTTYPE);
 DHT outdoorDht(OUTDOOR_DHT_PIN, DHTTYPE);
 
-float indoorTemperature = 0;
-float indoorHumidity = 0;
-float outdoorTemperature = 0;
-float outdoorHumidity = 0;
-
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -75,11 +70,11 @@ void loop() {
 
 void handle_OnConnect() {
 
-  indoorTemperature  = indoorDht.readTemperature();
-  indoorHumidity = indoorDht.readHumidity();
-  outdoorTemperature  = outdoorDht.readTemperature();
-  outdoorHumidity = outdoorDht.readHumidity(); 
-  server.send(200, "text/html", createJson(indoorTemperature, indoorHumidity, outdoorTemperature, outdoorHumidity)); 
+  float indoorTemperature  = indoorDht.readTemperature();
+  float indoorHumidity = indoorDht.readHumidity();
+  float outdoorTemperature  = outdoorDht.readTemperature();
+  float outdoorHumidity = outdoorDht.readHumidity(); 
+  server.send(200, "application/json", createJson(indoorTemperature, indoorHumidity, outdoorTemperature, outdoorHumidity)); 
 }
 
 void handle_NotFound(){
