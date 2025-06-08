@@ -28,21 +28,21 @@ function executeTest() {
 function test(delta, expected, switchOn = null) {
     var indoor = {"temperature" : 20 + delta, "humidity" : 100};
     var outdoor = {"temperature" : 20, "humidity" : 100};
-    var on = calc.caclulateSwitchOn(indoor, outdoor, switchOn);
+    var on = calc.caclulateSwitchOn({"indoor" : indoor, "outdoor" : outdoor}, switchOn);
     assertlib.equal(on, expected);
 }
 
 function testTempLimit(indoorTemp, outdoorTemp, expected) {
     var indoor = {"temperature" : indoorTemp, "humidity" : 100}; 
     var outdoor = {"temperature" : outdoorTemp, "humidity" : 100};
-    var on = calc.caclulateSwitchOn(indoor, outdoor, null);
+    var on = calc.caclulateSwitchOn({"indoor" : indoor, "outdoor" : outdoor}, null);
     assertlib.equal(on, expected);
 }
 
 function testHumidityLimit(indoorHumidity, outdoorHumidity, expected) {
     var indoor = {"temperature" : 20, "humidity" : indoorHumidity}; 
     var outdoor = {"temperature" : 20, "humidity" : outdoorHumidity};
-    var on = calc.caclulateSwitchOn(indoor, outdoor, false);
+    var on = calc.caclulateSwitchOn({"indoor" : indoor, "outdoor" : outdoor}, false);
     assertlib.equal(on, expected);
 }
 

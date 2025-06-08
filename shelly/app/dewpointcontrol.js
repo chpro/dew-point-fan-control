@@ -30,8 +30,8 @@ function udpateSwitch() {
                 return;
             } 
             // get the current switch status
-            const respBody = JSON.parse(response.body);
-            configureLight(respBody);
+            const environmentalData = JSON.parse(response.body);
+            configureLight(environmentalData);
             Shelly.call(
                 "switch.getStatus",
                 { id: 0 },
@@ -40,10 +40,10 @@ function udpateSwitch() {
                         return;
                     } 
                     var switchOn = response.output;
-                    var newSwitchOn = caclulateSwitchOn(respBody.indoor, respBody.outdoor, switchOn);
+                    var newSwitchOn = caclulateSwitchOn(environmentalData, switchOn);
                     Shelly.call("Switch.Set", {id:0, on: newSwitchOn}, function(response, error_code, error_message, ud) {
                         if (!errorHandler(response, error_code, error_message, ud)) {
-                            sendStatusChange(respBody, newSwitchOn);
+                            sendStatusChange(environmentalData, newSwitchOn);
                         }
                     });
                 },
@@ -74,22 +74,30 @@ function errorHandler(response, error_code, error_message, ud) {
 
 /**
  * Calcualtes if the switch should be sent to on or off
- * @param {Object} indoor - The object which holds indoor temperature and relative humidity
- * @param {Object} outdoor - The object which holds outdoor temperature and relative humidity
+ * @param {Object} environmentalData - containing indoor - The object which holds indoor temperature and relative humidity and outdoor - The object which holds outdoor temperature and relative humidity
  * @param {boolean} switchOn - true if switch is currently on else false. Will be returned as default behavior
  * @returns {boolean} true if switch should be switchted on otherwise false
  */
-function caclulateSwitchOn(indoor, outdoor, switchOn) {
-    const delta = calculateDewPoint(indoor.temperature, indoor.humidity) - calculateDewPoint(outdoor.temperature, outdoor.humidity);
-    console.log(new Date(), "Dew point delta " + delta + " for indoor ", indoor, "and outdoor ", outdoor);
+function caclulateSwitchOn(environmentalData, switchOn) {
+    console.log(environmentalData);
+    const indoorDewPoint = calculateDewPoint(environmentalData.indoor.temperature, environmentalData.indoor.humidity);
+    const outdoorDewPoint = calculateDewPoint(environmentalData.outdoor.temperature, environmentalData.outdoor.humidity);
+    // add dew point to environmentalData for tracking reason
+    environmentalData.indoor["dewPoint"] = indoorDewPoint;
+    environmentalData.outdoor["dewPoint"] = outdoorDewPoint;
+
+    const delta = indoorDewPoint - outdoorDewPoint;
+    console.log(new Date(), "Dew point delta " + delta + " for ", environmentalData);
+    const indoor = environmentalData.indoor;
+    const outdoor = environmentalData. outdoor;
     if (indoor.humidity < INDOOR_HUMIDITY_MIN) {
-        console.log(new Date(), "Switch off because indoor humidity to low", indoor);
+        console.log(new Date(), "Switch off because indoor humidity to low", environmentalData);
         return false;
     } else if (indoor.temperature < INDOOR_TEMP_MIN) {
-        console.log(new Date(), "Switch off because indoor temperature to low", indoor);
+        console.log(new Date(), "Switch off because indoor temperature to low", environmentalData);
         return false;
     } else if(outdoor.temperature < OUTDOOR_TEMP_MIN) {
-        console.log(new Date(), "Switch off because outdoor temperature to low", outdoor);
+        console.log(new Date(), "Switch off because outdoor temperature to low", environmentalData);
         return false;
     } else if (delta >= (DEW_POINT_DELTA_MIN + HYSTERESE)) {
         console.log(new Date(), "Switch on");
@@ -132,8 +140,8 @@ function _calculateDewPoint(a, b, temperature, humidity) {
     return dewPoint;
 }
 
-function configureLight(measures) {
-    var humidity = measures.indoor.humidity;
+function configureLight(environmentalData) {
+    var humidity = environmentalData.indoor.humidity;
     var shellyRgb = null;
     if (humidity < INDOOR_HUMIDITY_MIN) {
         shellyRgb = SHELLY_RGB_COLOR_HUMIDITY_DRY;
@@ -164,14 +172,13 @@ function _configureLight(shellyRGB, onBrightness, offBrightness) {
     })
 }
 
-function sendStatusChange(measures, switchStatus) {
-    var statusInfo = measures;
-    statusInfo["switch"] = (switchStatus ? 1 : 0);
-    console.log(new Date(), "Sending status change", statusInfo);
+function sendStatusChange(environmentalData, switchStatus) {
+    environmentalData["switch"] = (switchStatus ? 1 : 0);
+    console.log(new Date(), "Sending status change", environmentalData);
 
     let postData = {
         url: STATE_CHANGE_EVENT_URL,
-        body: statusInfo
+        body: environmentalData
     };
     Shelly.call("HTTP.POST", postData, function(response, error_code, error_message){console.log(new Date(), response, error_code, error_message)});
 }
